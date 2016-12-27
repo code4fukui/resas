@@ -1,0 +1,154 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>日本の区市町村のひとりあたり地方税（千円） - RESAS API利用例</title>
+<meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no"/>
+<link rel="apple-touch-icon" href="allpref.png"/>
+<meta property="og:image" content="allpref.jpg">
+<script src="http://fukuno.jig.jp/fukuno.js"></script>
+<script>"use strict";
+
+window.onload = function() {
+	button_get.onclick = function() {
+		getAllPref(function(data) {
+//			console.log(data);
+//			dump(data);
+			var res = data.result;
+			for (var i = 0; i < res.length; i++) {
+				var div = create("div");
+				var d = res[i];
+				div.textContent = d.prefName + "(" + d.prefCode + ")";
+				div.data = d;
+				div.onclick = function() {
+					var dp = this;
+					var c = dp.divc;
+					if (c.childNodes.length > 0) {
+						if (c.style.display == "none") {
+							c.style.display = "block";
+						} else {
+//							c.style.display = "none";
+						}
+						return;
+					}
+					
+					getAllCity(dp.data.prefCode, function(data) {
+						var c = dp.divc
+						var res = data.result;
+						var nbigcity = 0;
+						for (var i = 0; i < res.length; i++) {
+							var d = res[i];
+							if (d.bigCityFlag == 1)
+								nbigcity++;
+						}
+						var div = create("div");
+						div.textContent = "都市数:" + res.length + " 大都市数:" + nbigcity + " 大都市率:" + fixfloat(nbigcity / res.length * 100, 2) + "%";
+						c.appendChild(div);
+						
+						for (var i = 0; i < res.length; i++) {
+							var div = create("div");
+							var d = res[i];
+							div.textContent = d.cityName + "(" + d.cityCode + ") bigCity:" + d.bigCityFlag;
+							if (d.bigCityFlag)
+								div.style.fontColor = "red";
+							div.data = d;
+							c.appendChild(div);
+							div.onclick = function() {
+								var dp = this;
+								getTax(dp.data.cityCode, function(data) {
+//								getFoundationRate("01203", function(data) {
+									dump(data);
+								});
+							};
+						}
+					});
+				};
+				div.divc = create("div");
+				div.divc.style.marginLeft = "1em";
+				div.appendChild(div.divc);
+				main.appendChild(div);
+			}
+		});
+	};
+};
+var getPrefCode = function(cityCode) {
+	if (cityCode.startsWith("0")) {
+		cityCode = cityCode.substring(1);
+	}
+	return Math.floor(parseInt(cityCode) / 1000);
+};
+var getFoundationRate = function(cityCode, callback) {
+	callResasAPI("api/v1-rc.1/municipality/foundation/perYear?prefCode=" + getPrefCode(cityCode) + "&cityCode=" + cityCode, callback);
+};
+var getTax = function(cityCode, callback) {
+	callResasAPI("api/v1-rc.1/municipality/taxes/perYear?prefCode=" + getPrefCode(cityCode) + "&cityCode=" + cityCode, callback);
+};
+var getAllCity = function(prefcode, callback) {
+	callResasAPI("api/v1-rc.1/cities?prefCode=" + prefcode, callback);
+};
+var getAllPref = function(callback) {
+	callResasAPI("api/v1-rc.1/prefectures", callback);
+};
+var callResasAPI = function(api, callback) { // 呼び出し回数制限：1秒5回、1日2000回
+	var keyname = "resas_apikey";
+	var apikey = input_apikey.value;
+	if (apikey.length == 0) {
+		apikey = localStorage.getItem(keyname);
+		if (apikey == null || apikey.length == 0) {
+			alert("API-KEYを設定してください");
+			return;
+		}
+	}
+	localStorage.setItem(keyname, apikey);
+	var base = "https://opendata.resas-portal.go.jp/";
+	var xhr = new XMLHttpRequest();
+	xhr.open("GET", base + api, false);
+	xhr.setRequestHeader("X-API-KEY", apikey);
+	xhr.onreadystatechange = function () {
+		if (xhr.readyState == 4) { // 通信終了
+			if (xhr.status == 0) {
+				alert("通信失敗");
+			} else {
+				// 成功
+				var st = xhr.status;
+				if (st >= 200 && st < 300 || st == 304) {
+					var data = JSON.parse(xhr.responseText);
+					callback(data);
+				} else {
+					alert("ステータス異常:" + st);
+				}
+			}
+		}
+	};
+	xhr.send();
+};
+</script>
+<style>
+#main {
+	display: inline-block;
+	vertical-align: top;
+	width: 45%;
+}
+#debug {
+	display: inline-block;
+	vertical-align: top;
+	width: 45%;
+	background: #eee;
+	margin: 1em;
+	padding: 1em;
+}
+</style>
+</head>
+<body>
+
+<h2 id=title>日本の区市町村のひとりあたり地方税（千円） - RESAS API利用例</h2>
+API_KEY:<input type=text id=input_apikey> (<a href=https://opendata.resas-portal.go.jp>RESAS API KEY取得</a>)<br>
+<button id=button_get>取得</button><br>
+
+<div id="main"></div>
+<div id="debug"></div>
+
+<div id=src>
+APP: CC BY <a href=http://fukuno.jig.jp/ target=_blank>fukuno.jig.jp</a><br>
+DATA: 出典：<a href=https://opendata.resas-portal.go.jp>RESAS（地域経済分析システム）</a><br>
+</div>
+
+</body>
+</html>
