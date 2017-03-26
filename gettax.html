@@ -7,7 +7,7 @@
 <script>"use strict";
 
 window.onload = function() {
-	button_get.onclick = function() {
+	var loadFirst = function() {
 		getAllPref(function(data) {
 //			console.log(data);
 //			dump(data);
@@ -67,6 +67,10 @@ window.onload = function() {
 			}
 		});
 	};
+	if (loadKeyResasAPI()) {
+		loadFirst();
+	}
+	button_get.onclick = loadFirst;
 };
 var getPrefCode = function(cityCode) {
 	if (cityCode.startsWith("0")) {
@@ -86,17 +90,25 @@ var getAllCity = function(prefcode, callback) {
 var getAllPref = function(callback) {
 	callResasAPI("api/v1-rc.1/prefectures", callback);
 };
-var callResasAPI = function(api, callback) { // 呼び出し回数制限：1秒5回、1日2000回
+var loadKeyResasAPI = function() {
 	var keyname = "resas_apikey";
 	var apikey = input_apikey.value;
 	if (apikey.length == 0) {
 		apikey = localStorage.getItem(keyname);
 		if (apikey == null || apikey.length == 0) {
 			alert("API-KEYを設定してください");
-			return;
+			return null;
+		} else {
+			input_apikey.value = apikey;
 		}
 	}
 	localStorage.setItem(keyname, apikey);
+	return apikey;
+};
+var callResasAPI = function(api, callback) { // 呼び出し回数制限：1秒5回、1日2000回
+	var apikey = loadKeyResasAPI();
+	if (!apikey)
+		return;
 	var base = "https://opendata.resas-portal.go.jp/";
 	var xhr = new XMLHttpRequest();
 	xhr.open("GET", base + api, false);
@@ -127,6 +139,7 @@ var callResasAPI = function(api, callback) { // 呼び出し回数制限：1秒5
 	width: 45%;
 }
 #debug {
+	position: fixed;
 	display: inline-block;
 	vertical-align: top;
 	width: 45%;
@@ -134,16 +147,24 @@ var callResasAPI = function(api, callback) { // 呼び出し回数制限：1秒5
 	margin: 1em;
 	padding: 1em;
 }
+#apikey {
+	margin-top: 3em;
+}
+#src {
+	margin-top: 1em;
+}
 </style>
 </head>
 <body>
 
 <h2 id=title>日本の区市町村のひとりあたり地方税（千円） - RESAS API利用例</h2>
-API_KEY:<input type=text id=input_apikey> (<a href=https://opendata.resas-portal.go.jp>RESAS API KEY取得</a>)<br>
-<button id=button_get>取得</button><br>
 
 <div id="main"></div>
 <div id="debug"></div>
+
+<div id="apikey">
+API_KEY:<input type=password id=input_apikey> <button id=button_get>データ取得開始</button> (<a href=https://opendata.resas-portal.go.jp>まずは、RESAS API KEYを取得！</a>)
+</div>
 
 <div id=src>
 APP: CC BY <a href=https://github.com/codeforfukui/resas target=_blank>Code for Fukui</a><br>

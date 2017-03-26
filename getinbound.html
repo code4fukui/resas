@@ -1,0 +1,208 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Inbound - 都道府県別インバウンド（月別昼夜国別人数） - RESAS API</title>
+<meta name="viewport" content="initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no"/>
+<link rel="apple-touch-icon" href="resas_icon.png"/>
+<meta property="og:image" content="getinbound.png">
+<script src="fukuno.js"></script>
+<script>"use strict";
+
+window.onload = function() {
+	var prefs = {};
+	var showInbound = function() {
+		getInbound(input_pref.value, input_year.value, input_month.value, input_time.value, function(data) {
+//			dump(data);
+			var s = "<h3>" + prefs[input_pref.value] + "のインバウンド<br>（" + input_year.value + "年度" + input_month.value + "月 " + input_time.selectedOptions[0].textContent + "） </h3>";
+			data = data.result.data;
+			data.sort(function(a, b) {
+				return parseInt(b.value) - parseInt(a.value);
+			});
+			s += "<table>";
+			for (var i = 0; i < data.length; i++) {
+				var d = data[i];
+				s += "<tr><td>" + (i + 1) + "位</td><td>" + d.countryName + "</td><td>" + addComma(d.value) + "人</td></tr>";
+			}
+			s += "</table>";
+			get("main").innerHTML = s;
+		});
+	};
+	input_pref.onchange = showInbound;
+	input_month.onchange = showInbound;
+	input_time.onchange = showInbound;
+	
+	var loadFirst = function() {
+		getAllPref(function(data) {
+//			dump(data);
+			var res = data.result;
+			for (var i = 0; i < res.length; i++) {
+				var div = create("option");
+				var d = res[i];
+				div.textContent = d.prefName;
+				div.value = d.prefCode;
+				input_pref.appendChild(div);
+				prefs[d.prefCode] = d.prefName;
+			}
+		});
+	};
+	if (loadKeyResasAPI()) {
+		loadFirst();
+	}
+	button_get.onclick = loadFirst;
+};
+/*
+https://opendata.resas-portal.go.jp/docs/api/v1/partner/docomo/inbound.html
+GET  api/v1/partner/docomo/inbound
+parameters
+
+Name	Description	Required
+year	年度	true
+month	月(MM)	true
+prefCode	都道府県コード	true
+periodOfTime	時間帯	true
+	時間帯
+	1 昼(10:00～17:59)
+	2 夜(02:00～04:59)
+*/
+var getInbound = function(prefCode, year, month, time_1_or_2, callback) {
+	callResasAPI("api/v1/partner/docomo/inbound?prefCode=" + prefCode + "&year=" + year + "&month=" + month + "&periodOfTime=" + time_1_or_2, callback);
+};
+var getFoundationRate = function(cityCode, callback) {
+	callResasAPI("api/v1-rc.1/municipality/foundation/perYear?prefCode=" + getPrefCode(cityCode) + "&cityCode=" + cityCode, callback);
+};
+var getTax = function(cityCode, callback) {
+	callResasAPI("api/v1-rc.1/municipality/taxes/perYear?prefCode=" + getPrefCode(cityCode) + "&cityCode=" + cityCode, callback);
+};
+var getPrefCode = function(cityCode) {
+	if (cityCode.startsWith("0")) {
+		cityCode = cityCode.substring(1);
+	}
+	return Math.floor(parseInt(cityCode) / 1000);
+};
+var getAllCity = function(prefcode, callback) {
+	callResasAPI("api/v1-rc.1/cities?prefCode=" + prefcode, callback);
+};
+var getAllPref = function(callback) {
+	callResasAPI("api/v1-rc.1/prefectures", callback);
+};
+var loadKeyResasAPI = function() {
+	var keyname = "resas_apikey";
+	var apikey = input_apikey.value;
+	if (apikey.length == 0) {
+		apikey = localStorage.getItem(keyname);
+		if (apikey == null || apikey.length == 0) {
+			alert("API-KEYを設定してください");
+			return null;
+		} else {
+			input_apikey.value = apikey;
+		}
+	}
+	localStorage.setItem(keyname, apikey);
+	return apikey;
+};
+var callResasAPI = function(api, callback) { // 呼び出し回数制限：1秒5回、1日2000回
+	var apikey = loadKeyResasAPI();
+	if (!apikey)
+		return;
+	var base = "https://opendata.resas-portal.go.jp/";
+	var xhr = new XMLHttpRequest();
+	xhr.open("GET", base + api, false);
+	xhr.setRequestHeader("X-API-KEY", apikey);
+	xhr.onreadystatechange = function () {
+		if (xhr.readyState == 4) { // 通信終了
+			if (xhr.status == 0) {
+				alert("通信失敗");
+			} else {
+				// 成功
+				var st = xhr.status;
+				if (st >= 200 && st < 300 || st == 304) {
+					var data = JSON.parse(xhr.responseText);
+					callback(data);
+				} else {
+					alert("ステータス異常:" + st);
+				}
+			}
+		}
+	};
+	xhr.send();
+};
+</script>
+<style>
+#main {
+	display: inline-block;
+	vertical-align: top;
+	width: 45%;
+}
+#debug {
+	x-position: fixed;
+	x-display: inline-block;
+	display: none;
+	vertical-align: top;
+	width: 45%;
+	background: #eee;
+	margin: .5em;
+	padding: .5em;
+}
+#main table {
+	border-collapse: collapse;
+}
+#main table td {
+	border: 1px solid #444;
+	padding: 2px;
+}
+#main table td:nth-child(1) {
+	text-align: right;
+}
+#main table td:nth-child(3) {
+	text-align: right;
+	padding-left: 1em;
+}
+#apikey {
+	margin-top: 3em;
+}
+#src {
+	margin-top: 1em;
+}
+#src a {
+	color: gray !important;
+}
+</style>
+</head>
+<body>
+
+<h2 id=title>Inbound - 都道府県別インバウンド（月別昼夜国別人数） - RESAS API</h2>
+
+<div id="opt">
+<select id=input_pref></select>
+<input type=text id=input_year value=2015 readonly=true>
+<select id=input_month>
+<option value=1>1月</option>
+<option value=2>2月</option>
+<option value=3>3月</option>
+<option value=4>4月</option>
+<option value=5>5月</option>
+<option value=6>6月</option>
+<option value=7>7月</option>
+<option value=8>8月</option>
+<option value=9>9月</option>
+<option value=10>10月</option>
+<option value=11>11月</option>
+<option value=12>12月</option>
+</select>
+<select id=input_time><option value=1>昼(10:00～17:59) </option><option value=2>夜(02:00～04:59)</option></select>
+</div>
+
+<div id="main"></div>
+<div id="debug"></div>
+
+<div id="apikey">
+API_KEY:<input type=password id=input_apikey> <button id=button_get>データ取得開始</button> (<a href=https://opendata.resas-portal.go.jp>まずは、RESAS API KEYを取得！</a>)
+</div>
+
+<div id=src>
+APP: CC BY <a href=https://github.com/codeforfukui/resas target=_blank>Code for Fukui</a><br>
+DATA: 出典：<a href=https://opendata.resas-portal.go.jp>RESAS（地域経済分析システム）</a><br>
+DATA: 出典：<a href=https://opendata.resas-portal.go.jp/docs/api/v1/partner/docomo/inbound.html>モバイル空間統計_NTTドコモ（訪日外国人数）</a><br>
+
+</div>
+
+</body>
+</html>
